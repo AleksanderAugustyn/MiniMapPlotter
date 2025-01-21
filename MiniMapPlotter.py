@@ -11,6 +11,11 @@ from mpl_toolkits.mplot3d import Axes3D  # Required for 3D plotting
 
 def read_data(filename):
     data = np.loadtxt(filename)
+
+    # If the file has less than 600 rows, skip it
+    if data.shape[0] < 600:
+        return np.array([])
+
     return data
 
 
