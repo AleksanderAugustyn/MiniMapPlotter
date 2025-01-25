@@ -8,6 +8,15 @@ from scipy.interpolate import griddata
 from matplotlib.colors import LinearSegmentedColormap
 from mpl_toolkits.mplot3d import Axes3D  # Required for 3D plotting
 
+# Dictionary mapping atomic numbers to element names
+ELEMENTS = {
+    90: "Th",
+    92: "U",
+    94: "Pu",
+    96: "Cm",
+    98: "Cf"
+}
+
 
 def create_output_directories(number_of_protons, number_of_neutrons):
     """Create the directory structure for output files."""
@@ -332,6 +341,88 @@ def create_32grid_plot(number_of_protons, number_of_neutrons, deformation_type, 
     return fig
 
 
+def save_energy_plot(number_of_protons, number_of_neutrons, output_dir=None):
+    """
+    Creates and saves a 2D energy plot for a specific nucleus.
+
+    Parameters:
+    number_of_protons (int): Number of protons in the nucleus
+    number_of_neutrons (int): Number of neutrons in the nucleus
+    output_dir (str, optional): Directory to save the plot. If None, creates a directory based on proton and neutron numbers
+
+    Returns:
+    str: Path to the saved plot file, or None if processing failed
+    """
+    if output_dir is None:
+        output_dir = f"{number_of_protons}_{number_of_neutrons}"
+        os.makedirs(output_dir, exist_ok=True)
+
+    filename = os.path.join("MiniMaps", f"{number_of_protons}_{number_of_neutrons}_6D_B20B30_MiniMap.txt")
+
+    try:
+        data = read_data(filename)
+        if data.size == 0:
+            print(f"No data found in the file {filename}")
+            return None
+
+        filtered_data = filter_data(data)
+        if filtered_data.size == 0:
+            print(f"No data left after filtering for file {filename}")
+            return None
+
+        fig, ax = plt.subplots(figsize=(10, 8))
+
+        x = filtered_data[:, 5]  # B20 column
+        y = filtered_data[:, 6]  # B30 column
+        z = filtered_data[:, 1]  # E column
+
+        xi = np.linspace(x.min(), x.max(), 100)
+        yi = np.linspace(y.min(), y.max(), 100)
+        X, Y = np.meshgrid(xi, yi)
+        Z = griddata((x, y), z, (X, Y), method='cubic')
+
+        cmap = create_custom_cmap()
+        im = ax.imshow(Z, extent=(x.min(), x.max(), y.min(), y.max()),
+                       origin='lower', aspect='auto', cmap=cmap)
+
+        levels = np.arange(np.floor(z.min()), np.ceil(z.max()) + 1, 1)
+        contour = ax.contour(X, Y, Z, levels=levels, colors='black', alpha=0.75)
+        ax.clabel(contour, inline=True, fontsize=12, fmt='%1.0f', colors='black', inline_spacing=1)
+
+        # Add nucleus-specific markers if available
+        markers = {
+            (90, 140): [(0.19, 0.0, 'ko'), (0.75, 0.15, 'ks')],
+            (92, 144): [(0.21, 0.0, 'ko'), (0.75, 0.15, 'ks')],
+            (94, 146): [(0.23, 0.0, 'ko'), (0.85, 0.20, 'ks')],
+            (96, 150): [(0.24, 0.0, 'ko'), (0.85, 0.20, 'ks')],
+            (98, 152): [(0.25, 0.0, 'ko'), (1.00, 0.10, 'ks')]
+        }
+
+        if (number_of_protons, number_of_neutrons) in markers:
+            for x, y, marker in markers[(number_of_protons, number_of_neutrons)]:
+                ax.plot(x, y, marker, markersize=10)
+
+        element_name = ELEMENTS.get(number_of_protons, "Unknown Element")
+
+        ax.set_xlabel('$B_{20}$', fontsize=12)
+        ax.set_ylabel('$B_{30}$', fontsize=12)
+        ax.set_title(f'$^{{{number_of_protons + number_of_neutrons}}}${element_name}', fontsize=24, fontweight='bold')
+
+        cbar = plt.colorbar(im, ax=ax)
+        cbar.set_label('Energy (MeV)', fontsize=12)
+
+        output_filename = os.path.join(output_dir, f"{number_of_protons}_{number_of_neutrons}_minimized_E_plot.png")
+        plt.savefig(output_filename, dpi=600, bbox_inches='tight')
+        print(f"Energy plot saved as {output_filename}")
+
+        plt.close(fig)
+        return output_filename
+
+    except Exception as e:
+        print(f"Error processing file: {str(e)}")
+        return None
+
+
 def process_file(filename, number_of_protons, number_of_neutrons, dimensions, plot_type, output_dir):
     try:
         data = read_data(filename)
@@ -496,6 +587,9 @@ def main(number_of_protons, number_of_neutrons):
         for dim in ['6', '4']:
             filename = os.path.join("MiniMaps", f"{number_of_protons}_{number_of_neutrons}_{dim}D_B20B30{suffix}_MiniMap.txt")
             process_file(filename, number_of_protons, number_of_neutrons, dim, plot_type, base_dir)
+
+    # Save energy plot
+    save_energy_plot(number_of_protons, number_of_neutrons, base_dir)
 
     # Create and save B10 grid plot
     b10_33grid_values = [-0.400, -0.300, -0.200, -0.100, 0.000, 0.100, 0.200, 0.300, 0.400]
