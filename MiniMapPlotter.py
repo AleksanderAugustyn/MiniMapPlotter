@@ -232,7 +232,7 @@ def create_33grid_plot(number_of_protons, number_of_neutrons, deformation_type, 
         plt.show()
 
     output_filename = os.path.join(output_dir, f"{number_of_protons}_{number_of_neutrons}_B{deformation_type}_33grid_plot.png")
-    fig.savefig(output_filename, dpi=300, bbox_inches='tight')
+    fig.savefig(output_filename, dpi=600, bbox_inches='tight')
     print(f"B{deformation_type} grid plot saved as {output_filename}")
 
     plt.close(fig)
@@ -241,7 +241,7 @@ def create_33grid_plot(number_of_protons, number_of_neutrons, deformation_type, 
 
 def create_32grid_plot(number_of_protons, number_of_neutrons, deformation_type, values, file_pattern, output_dir):
     """Create a 3x2 grid of 2D E plots for different deformation values (B10 or B40)."""
-    fig = plt.figure(figsize=(20, 15))
+    fig = plt.figure(figsize=(20, 20))
     fig.suptitle(f"Energy Surface for Different $B_{{{deformation_type}}}$ Values (P={number_of_protons}, N={number_of_neutrons})",
                  fontsize=24)
 
@@ -285,7 +285,7 @@ def create_32grid_plot(number_of_protons, number_of_neutrons, deformation_type, 
             if filtered_data.size == 0:
                 continue
 
-            ax = fig.add_subplot(3, 3, idx + 1)
+            ax = fig.add_subplot(3, 2, idx + 1)  # Changed from 3, 3 to 3, 2
             x = filtered_data[:, 5]
             y = filtered_data[:, 6]
             z = filtered_data[:, 1]
@@ -296,8 +296,9 @@ def create_32grid_plot(number_of_protons, number_of_neutrons, deformation_type, 
 
             Z = griddata((x, y), z, (X, Y), method='cubic')
 
+            # Changed origin from 'upper' to 'lower' to match contour orientation
             im = ax.imshow(Z, extent=(x.min(), x.max(), y.min(), y.max()),
-                           origin='upper', aspect='auto', cmap=cmap,
+                           origin='lower', aspect='auto', cmap=cmap,
                            vmin=vmin, vmax=vmax)
 
             levels = np.arange(np.floor(vmin), np.ceil(vmax) + 1, 1)
@@ -324,22 +325,118 @@ def create_32grid_plot(number_of_protons, number_of_neutrons, deformation_type, 
             print(f"Error processing B{deformation_type}={value}: {str(e)}")
             continue
 
-    cbar_ax = fig.add_axes((0.92, 0.35, 0.02, 0.6))
+    cbar_ax = fig.add_axes((0.92, 0.15, 0.02, 0.7))
     cbar = fig.colorbar(im, cax=cbar_ax)
     cbar.set_label('Energy (MeV)', fontsize=12)
 
     plt.tight_layout(rect=(0.0, 0.03, 0.9, 0.95))
 
-    if show_plots:
-        plt.show()
-
     output_filename = os.path.join(output_dir, f"{number_of_protons}_{number_of_neutrons}_B{deformation_type}_32grid_plot.png")
-    fig.savefig(output_filename, dpi=300, bbox_inches='tight')
+    fig.savefig(output_filename, dpi=600, bbox_inches='tight')
     print(f"B{deformation_type} grid plot saved as {output_filename}")
 
     plt.close(fig)
     return fig
 
+
+def create_23grid_plot(number_of_protons, number_of_neutrons, deformation_type, values, file_pattern, output_dir):
+    """Create a 3x2 grid of 2D E plots for different deformation values (B10 or B40)."""
+    fig = plt.figure(figsize=(25, 15))
+    fig.suptitle(f"Energy Surface for Different $B_{{{deformation_type}}}$ Values (P={number_of_protons}, N={number_of_neutrons})",
+                 fontsize=24)
+
+    cmap = create_custom_cmap()
+    all_z_values = []
+
+    # First pass: collect all z values
+    for value in values:
+        filename = os.path.join("MiniMaps", file_pattern.format(
+            protons=number_of_protons,
+            neutrons=number_of_neutrons,
+            value=value))
+        try:
+            data = read_data(filename)
+            if data.size > 0:
+                filtered_data = filter_data(data)
+                if filtered_data.size > 0:
+                    all_z_values.extend(filtered_data[:, 1])
+        except Exception:
+            continue
+
+    if not all_z_values:
+        print(f"No valid data found for B{deformation_type} grid plot")
+        return None
+
+    vmin, vmax = np.min(all_z_values), np.max(all_z_values)
+
+    # Second pass: create plots
+    for idx, value in enumerate(values):
+        filename = os.path.join("MiniMaps", file_pattern.format(
+            protons=number_of_protons,
+            neutrons=number_of_neutrons,
+            value=value))
+
+        try:
+            data = read_data(filename)
+            if data.size == 0:
+                continue
+
+            filtered_data = filter_data(data)
+            if filtered_data.size == 0:
+                continue
+
+            ax = fig.add_subplot(2, 3, idx + 1)  # Changed from 3, 3 to 3, 2
+            x = filtered_data[:, 5]
+            y = filtered_data[:, 6]
+            z = filtered_data[:, 1]
+
+            xi = np.linspace(x.min(), x.max(), 100)
+            yi = np.linspace(y.min(), y.max(), 100)
+            X, Y = np.meshgrid(xi, yi)
+
+            Z = griddata((x, y), z, (X, Y), method='cubic')
+
+            # Changed origin from 'upper' to 'lower' to match contour orientation
+            im = ax.imshow(Z, extent=(x.min(), x.max(), y.min(), y.max()),
+                           origin='lower', aspect='auto', cmap=cmap,
+                           vmin=vmin, vmax=vmax)
+
+            levels = np.arange(np.floor(vmin), np.ceil(vmax) + 1, 1)
+            contour = ax.contour(X, Y, Z, levels=levels, colors='black', alpha=0.75)
+            ax.clabel(contour, inline=True, fontsize=12, fmt='%1.0f', colors='black', inline_spacing=1)
+
+            markers = {
+                (90, 140): [(0.19, 0.0, 'ko'), (0.75, 0.15, 'ks')],
+                (92, 144): [(0.21, 0.0, 'ko'), (0.75, 0.15, 'ks')],
+                (94, 146): [(0.23, 0.0, 'ko'), (0.85, 0.20, 'ks')],
+                (96, 150): [(0.24, 0.0, 'ko'), (0.85, 0.20, 'ks')],
+                (98, 152): [(0.25, 0.0, 'ko'), (1.00, 0.10, 'ks')]
+            }
+
+            if (number_of_protons, number_of_neutrons) in markers:
+                for x, y, marker in markers[(number_of_protons, number_of_neutrons)]:
+                    ax.plot(x, y, marker, markersize=10)
+
+            ax.set_xlabel('$B_{20}$', fontsize=12)
+            ax.set_ylabel('$B_{30}$', fontsize=12)
+            ax.set_title(f'$B_{{{deformation_type}}} = {value:.3f}$', fontsize=14)
+
+        except Exception as e:
+            print(f"Error processing B{deformation_type}={value}: {str(e)}")
+            continue
+
+    cbar_ax = fig.add_axes((0.92, 0.15, 0.02, 0.7))
+    cbar = fig.colorbar(im, cax=cbar_ax)
+    cbar.set_label('Energy (MeV)', fontsize=12)
+
+    plt.tight_layout(rect=(0.0, 0.03, 0.9, 0.95))
+
+    output_filename = os.path.join(output_dir, f"{number_of_protons}_{number_of_neutrons}_B{deformation_type}_23grid_plot.png")
+    fig.savefig(output_filename, dpi=600, bbox_inches='tight')
+    print(f"B{deformation_type} grid plot saved as {output_filename}")
+
+    plt.close(fig)
+    return fig
 
 def save_energy_plot(number_of_protons, number_of_neutrons, output_dir=None):
     """
@@ -597,6 +694,7 @@ def main(number_of_protons, number_of_neutrons):
     b10_file_pattern = "{protons}_{neutrons}_6D_B10const_MiniMap_B10_{value:.3f}.txt"
     create_33grid_plot(number_of_protons, number_of_neutrons, "10", b10_33grid_values, b10_file_pattern, base_dir)
     create_32grid_plot(number_of_protons, number_of_neutrons, "10", b10_32grid_values, b10_file_pattern, base_dir)
+    create_23grid_plot(number_of_protons, number_of_neutrons, "10", b10_32grid_values, b10_file_pattern, base_dir)
 
     # Create and save B40 grid plot
     b40_33grid_values = [-0.400, -0.300, -0.200, -0.100, 0.000, 0.100, 0.200, 0.300, 0.400]
