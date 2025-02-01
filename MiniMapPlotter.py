@@ -10,6 +10,7 @@ from mpl_toolkits.mplot3d import Axes3D  # Required for 3D plotting
 
 # Dictionary mapping atomic numbers to element names
 ELEMENTS = {
+    88: "Ra",
     90: "Th",
     92: "U",
     94: "Pu",
